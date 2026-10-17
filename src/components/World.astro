@@ -24,7 +24,6 @@ const zones = [
 		id: 'about',
 		label: 'About',
 		blurb: 'who I am',
-		href: '/about',
 		x: 650,
 		y: 520,
 		preview: [
@@ -35,7 +34,6 @@ const zones = [
 		id: 'projects',
 		label: 'Projects',
 		blurb: 'what I have built',
-		href: '/projects',
 		x: 2550,
 		y: 520,
 		preview: ['This website (Astro + canvas)', 'Food Truck Finder', 'blelelel','More coming soon'],
@@ -44,7 +42,6 @@ const zones = [
 		id: 'pictures',
 		label: 'Pictures',
 		blurb: 'cats, 日本, life',
-		href: '/pictures',
 		x: 650,
 		y: 1480,
 		preview: [], // shows placeholder photo tiles for now
@@ -53,7 +50,6 @@ const zones = [
 		id: 'blog',
 		label: 'Blog',
 		blurb: 'notes and stories',
-		href: '/blog',
 		x: 2550,
 		y: 1480,
 		preview: ['Life in Japan', 'Things I am learning', 'Trips and stories'],
@@ -122,9 +118,6 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 									))}
 								</div>
 							)}
-							<a class="more" href={z.href}>
-								open {z.label.toLowerCase()} →
-							</a>
 						</div>
 					</div>
 				</div>
@@ -341,14 +334,6 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		background: #e7dfcf;
 		border: 1px solid var(--hairline);
 	}
-	.more {
-		display: inline-block;
-		margin-top: 14px;
-		color: var(--vermilion);
-		font-size: 0.9rem;
-		text-decoration: none;
-		border-bottom: 1px solid currentColor;
-	}
 
 	/* ----- Fixed UI ----- */
 	.logo {
@@ -455,6 +440,20 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		}
 		.hint {
 			display: none;
+		}
+
+		/*
+		  Opened cards fit the phone's width instead of a fixed 480px.
+		  Opening a card zooms the camera to 1, so 1 world px = 1 screen px,
+		  and 100vw (the screen width) can be used directly inside the world.
+		  min() picks whichever is smaller: 480px, or the screen minus 16px each side.
+		*/
+		.card.open {
+			width: min(480px, calc(100vw - 32px));
+			padding: 18px 20px;
+		}
+		.card.open .card-head b {
+			font-size: 1.35rem;
 		}
 	}
 </style>
