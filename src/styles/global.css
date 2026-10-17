@@ -3,6 +3,7 @@
   https://github.com/HermanMartinus/bearblog/blob/297026a877bc2ab2b3bdfbd6b9f7961c350917dd/templates/styles/blog/default.css
   License MIT: https://github.com/HermanMartinus/bearblog/blob/master/LICENSE.md
  */
+@import "tailwindcss";
 
 :root {
 	--accent: #2337ff;
@@ -16,111 +17,127 @@
 		0 2px 6px rgba(var(--gray), 25%), 0 8px 24px rgba(var(--gray), 33%),
 		0 16px 32px rgba(var(--gray), 33%);
 }
-body {
-	font-family: var(--font-atkinson);
-	margin: 0;
-	padding: 0;
-	text-align: left;
-	background: linear-gradient(var(--gray-gradient)) no-repeat;
-	background-size: 100% 600px;
-	word-wrap: break-word;
-	overflow-wrap: break-word;
-	color: rgb(var(--gray-dark));
-	font-size: 20px;
-	line-height: 1.7;
-}
-main {
-	width: 720px;
-	max-width: calc(100% - 2em);
-	margin: auto;
-	padding: 3em 1em;
-}
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-	margin: 0 0 0.5rem 0;
-	color: rgb(var(--black));
-	line-height: 1.2;
-}
-h1 {
-	font-size: 3.052em;
-}
-h2 {
-	font-size: 2.441em;
-}
-h3 {
-	font-size: 1.953em;
-}
-h4 {
-	font-size: 1.563em;
-}
-h5 {
-	font-size: 1.25em;
-}
-strong,
-b {
-	font-weight: 700;
-}
-a {
-	color: var(--accent);
-}
-a:hover {
-	color: var(--accent);
-}
-p {
-	margin-bottom: 1em;
-}
-.prose p {
-	margin-bottom: 2em;
-}
-textarea {
-	width: 100%;
-	font-size: 16px;
-}
-input {
-	font-size: 16px;
-}
-table {
-	width: 100%;
-}
-img {
-	max-width: 100%;
-	height: auto;
-	border-radius: 8px;
-}
-code {
-	padding: 2px 5px;
-	background-color: rgb(var(--gray-light));
-	border-radius: 2px;
-}
-pre {
-	padding: 1.5em;
-	border-radius: 8px;
-}
-pre > code {
-	all: unset;
-}
-blockquote {
-	border-left: 4px solid var(--accent);
-	padding: 0 0 0 20px;
-	margin: 0;
-	font-size: 1.333em;
-}
-hr {
-	border: none;
-	border-top: 1px solid rgb(var(--gray-light));
-}
-@media (max-width: 720px) {
+
+/*
+  Base layer: default styles for plain HTML elements (body, h1, a, code...).
+  Tailwind ranks its layers: theme < base < components < utilities.
+  Because these rules are in "base", any Tailwind class you add to an
+  element (like class="text-3xl") will override them.
+ */
+@layer base {
 	body {
-		font-size: 18px;
+		font-family: var(--font-atkinson);
+		margin: 0;
+		padding: 0;
+		text-align: left;
+		/* Dark gray gradient: darkest at the left and right edges, lightest in the center */
+		background: linear-gradient(to right, #0a0a0a, #1c1c1c, #0a0a0a);
+		/* Pin the background to the window so it doesn't stretch or move when scrolling */
+		background-attachment: fixed;
+		word-wrap: break-word;
+		overflow-wrap: break-word;
+		color: #e5e5e5;
+		font-size: 20px;
+		line-height: 1.7;
 	}
 	main {
-		padding: 1em;
+		width: 720px;
+		max-width: calc(100% - 2em);
+		margin: auto;
+		padding: 3em 1em;
+	}
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		margin: 0 0 0.5rem 0;
+		color: #ffffff;
+		line-height: 1.2;
+	}
+	h1 {
+		font-size: 3.052em;
+	}
+	h2 {
+		font-size: 2.441em;
+	}
+	h3 {
+		font-size: 1.953em;
+	}
+	h4 {
+		font-size: 1.563em;
+	}
+	h5 {
+		font-size: 1.25em;
+	}
+	strong,
+	b {
+		font-weight: 700;
+	}
+	a {
+		color: var(--accent);
+	}
+	a:hover {
+		color: var(--accent);
+	}
+	p {
+		margin-bottom: 1em;
+	}
+	.prose p {
+		margin-bottom: 2em;
+	}
+	textarea {
+		width: 100%;
+		font-size: 16px;
+	}
+	input {
+		font-size: 16px;
+	}
+	table {
+		width: 100%;
+	}
+	img {
+		max-width: 100%;
+		height: auto;
+		border-radius: 8px;
+	}
+	code {
+		padding: 2px 5px;
+		background-color: rgb(var(--gray-light));
+		border-radius: 2px;
+	}
+	pre {
+		padding: 1.5em;
+		border-radius: 8px;
+	}
+	pre > code {
+		all: unset;
+	}
+	blockquote {
+		border-left: 4px solid var(--accent);
+		padding: 0 0 0 20px;
+		margin: 0;
+		font-size: 1.333em;
+	}
+	hr {
+		border: none;
+		border-top: 1px solid rgb(var(--gray-light));
+	}
+	@media (max-width: 720px) {
+		body {
+			font-size: 18px;
+		}
+		main {
+			padding: 1em;
+		}
 	}
 }
+
+/*
+  Left outside any layer on purpose: unlayered styles beat all layers,
+  and this screen-reader helper should always win.
+ */
 
 .sr-only {
 	border: 0;

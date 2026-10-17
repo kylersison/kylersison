@@ -49,8 +49,11 @@ const today = new Date();
 <style>
 	footer {
 		padding: 2em 1em 6em 1em;
-		background: linear-gradient(var(--gray-gradient)) no-repeat;
-		color: rgb(var(--gray));
+		/* Transparent so the page's gradient shows through, plus a thin divider line */
+		background: transparent;
+		border-top: 1px solid #262626;
+		/* Dimmer than body text: the footer is less important than main content */
+		color: #a3a3a3;
 		text-align: center;
 	}
 	.social-links {
@@ -61,9 +64,10 @@ const today = new Date();
 	}
 	.social-links a {
 		text-decoration: none;
-		color: rgb(var(--gray));
+		color: #a3a3a3;
 	}
 	.social-links a:hover {
-		color: rgb(var(--gray-dark));
+		/* Brighten on hover (the old value got darker, which disappears on black) */
+		color: #ffffff;
 	}
 </style>

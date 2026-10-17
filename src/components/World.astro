@@ -1,0 +1,775 @@
+---
+/*
+  World.astro: the explorable homepage (washi paper style).
+
+  Big idea: the "world" is much bigger than the screen. A camera looks at
+  part of it. Dragging moves the camera, scrolling zooms it, and the cards
+  expand in place when clicked.
+
+  Layers, from back to front:
+    1. <canvas>  : paper grid + ink trail (drawn with JavaScript)
+    2. .world    : your name and the zone cards (normal HTML, moved/scaled with CSS)
+    3. fixed UI  : seal logo, nav, zoom buttons, minimap, hint (never move)
+*/
+
+// ----- World settings: edit these to rearrange your world -----
+const WORLD_W = 3200; // world width in px
+const WORLD_H = 2000; // world height in px
+const home = { x: 1600, y: 1000 }; // where your name sits (the start view)
+
+// Each zone becomes a card, a nav link and a minimap dot.
+// `preview` is what shows when the card expands. Replace with your own words.
+const zones = [
+	{
+		id: 'about',
+		label: 'About',
+		blurb: 'who I am',
+		href: '/about',
+		x: 650,
+		y: 520,
+		preview: [
+			'Computer science student at CSULB.',
+		],
+	},
+	{
+		id: 'projects',
+		label: 'Projects',
+		blurb: 'what I have built',
+		href: '/projects',
+		x: 2550,
+		y: 520,
+		preview: ['This website (Astro + canvas)', 'Food Truck Finder', 'blelelel','More coming soon'],
+	},
+	{
+		id: 'pictures',
+		label: 'Pictures',
+		blurb: 'cats, 日本, life',
+		href: '/pictures',
+		x: 650,
+		y: 1480,
+		preview: [], // shows placeholder photo tiles for now
+	},
+	{
+		id: 'blog',
+		label: 'Blog',
+		blurb: 'notes and stories',
+		href: '/blog',
+		x: 2550,
+		y: 1480,
+		preview: ['Life in Japan', 'Things I am learning', 'Trips and stories'],
+	},
+];
+
+// Minimap size (same shape as the world)
+const MINI_W = 120;
+const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
+---
+
+<!--
+  data-* attributes hand the settings above to the <script> below.
+  The frontmatter runs at build time; the script runs later in the browser.
+-->
+<div
+	class="stage"
+	data-world-w={WORLD_W}
+	data-world-h={WORLD_H}
+	data-home-x={home.x}
+	data-home-y={home.y}
+	data-mini-w={MINI_W}
+	data-mini-h={MINI_H}
+>
+	<canvas class="grid" aria-hidden="true"></canvas>
+
+	<div class="world" style={`width:${WORLD_W}px;height:${WORLD_H}px`}>
+		<div class="title" style={`left:${home.x}px;top:${home.y}px`}>
+			<h1>kyler sison</h1>
+			<p>drag to explore · scroll to zoom</p>
+		</div>
+
+		{
+			zones.map((z) => (
+				<div
+					class="card"
+					role="button"
+					tabindex="0"
+					aria-expanded="false"
+					data-zone={z.id}
+					data-x={z.x}
+					data-y={z.y}
+					style={`left:${z.x}px;top:${z.y}px`}
+				>
+					<div class="card-head">
+						<b>{z.label}</b>
+						<span>{z.blurb}</span>
+					</div>
+					<button class="close" aria-label={`Close ${z.label}`} tabindex="-1">
+						×
+					</button>
+
+					<!-- Hidden until .open is added; see the grid-rows trick in the CSS -->
+					<div class="details">
+						<div class="details-inner">
+							{z.preview.length > 0 ? (
+								<ul>
+									{z.preview.map((line) => (
+										<li>{line}</li>
+									))}
+								</ul>
+							) : (
+								<div class="tiles">
+									{[1, 2, 3, 4, 5, 6].map(() => (
+										<span class="tile" />
+									))}
+								</div>
+							)}
+							<a class="more" href={z.href}>
+								open {z.label.toLowerCase()} →
+							</a>
+						</div>
+					</div>
+				</div>
+			))
+		}
+	</div>
+
+	<!-- Fixed UI: outside .world, so it stays put -->
+	<button class="logo" aria-label="Back to home">ks</button>
+
+	<nav class="nav" aria-label="Jump to a zone">
+		{zones.map((z) => <button data-go={z.id}>{z.label.toLowerCase()}</button>)}
+	</nav>
+
+	<div class="zoom" role="group" aria-label="Zoom">
+		<button data-zoom="in" aria-label="Zoom in">+</button>
+		<button data-zoom="out" aria-label="Zoom out">−</button>
+	</div>
+
+	<button
+		class="minimap"
+		aria-label="Minimap: click to jump to that spot"
+		style={`width:${MINI_W}px;height:${MINI_H}px`}
+	>
+		<span class="mini-view"></span>
+		{
+			zones.map((z) => (
+				<span class="mini-dot" style={`left:${(z.x / WORLD_W) * MINI_W}px;top:${(z.y / WORLD_H) * MINI_H}px`} />
+			))
+		}
+	</button>
+
+	<p class="hint">drag · scroll to zoom · click a card</p>
+</div>
+
+<style>
+	/* ----- Washi palette: change these to restyle everything ----- */
+	.stage {
+		--paper: #f3ede1;
+		--paper-light: #faf6ee;
+		--ink: #2a2320;
+		--ink-soft: #6b5e55;
+		--vermilion: #d9482b;
+		--hairline: rgba(42, 35, 32, 0.18);
+		--serif: 'Noto Serif JP', Georgia, serif;
+	}
+
+	/* The stage fills the browser window and never scrolls */
+	.stage {
+		position: fixed;
+		inset: 0;
+		overflow: hidden;
+		background: var(--paper);
+		color: var(--ink);
+		font-family: var(--serif);
+		cursor: grab;
+		user-select: none; /* no text highlighting while dragging */
+		touch-action: none; /* fingers drag/pinch the world instead of scrolling */
+	}
+	.stage.dragging {
+		cursor: grabbing;
+	}
+
+	.grid {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+
+	/* The big world. JavaScript sets transform: translate(...) scale(...) */
+	.world {
+		position: absolute;
+		left: 0;
+		top: 0;
+		transform-origin: 0 0; /* scale from the top-left corner, so the math is simple */
+		/*
+		  No will-change: transform here on purpose. It makes the browser snapshot
+		  this layer as an image and stretch it when zooming, which blurs the text.
+		  Without it, text is redrawn sharp at every zoom level.
+		*/
+	}
+
+	/* Your name */
+	.title {
+		position: absolute;
+		transform: translate(-50%, -50%);
+		text-align: center;
+		pointer-events: none;
+		white-space: nowrap;
+	}
+	.title h1 {
+		margin: 0;
+		font-family: var(--serif);
+		font-size: 3rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		color: var(--ink);
+		line-height: 1.1;
+	}
+	.title p {
+		margin: 0.4rem 0 0;
+		font-size: 0.85rem;
+		color: var(--ink-soft);
+	}
+
+	/* ----- Cards ----- */
+	.card {
+		position: absolute;
+		transform: translate(-50%, -50%); /* grow from the center */
+		width: 190px;
+		padding: 14px 18px;
+		background: var(--paper-light);
+		border: 1px solid var(--hairline);
+		border-top: 3px solid var(--vermilion);
+		border-radius: 2px;
+		color: var(--ink);
+		cursor: pointer;
+		transition:
+			width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
+			padding 0.4s,
+			box-shadow 0.4s,
+			transform 0.15s;
+	}
+	.card:not(.open):hover {
+		transform: translate(-50%, -50%) scale(1.04);
+	}
+	.card:focus-visible {
+		outline: 2px solid var(--vermilion);
+		outline-offset: 3px;
+	}
+	.card.open {
+		width: 480px;
+		padding: 22px 26px;
+		cursor: default;
+		box-shadow: 0 18px 40px rgba(42, 35, 32, 0.12);
+		z-index: 2;
+	}
+	.card-head b {
+		display: block;
+		font-size: 1.1rem;
+		letter-spacing: 0.04em;
+	}
+	.card.open .card-head b {
+		font-size: 1.6rem;
+	}
+	.card-head span {
+		font-size: 0.8rem;
+		color: var(--ink-soft);
+	}
+	.close {
+		position: absolute;
+		top: 10px;
+		right: 12px;
+		border: none;
+		background: none;
+		font-size: 1.4rem;
+		line-height: 1;
+		color: var(--ink-soft);
+		cursor: pointer;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 0.2s;
+	}
+	.card.open .close {
+		opacity: 1;
+		pointer-events: auto;
+	}
+
+	/*
+	  The grid-rows trick: you can't animate height: auto, but you CAN animate
+	  grid-template-rows from 0fr (no space) to 1fr (exactly as tall as the
+	  content). The inner div hides whatever doesn't fit yet.
+	*/
+	.details {
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	.card.open .details {
+		grid-template-rows: 1fr;
+	}
+	.details-inner {
+		overflow: hidden;
+		opacity: 0;
+		visibility: hidden; /* also hides the link from the Tab key while closed */
+		transition:
+			opacity 0.25s,
+			visibility 0s 0.25s;
+	}
+	.card.open .details-inner {
+		opacity: 1;
+		visibility: visible;
+		transition: opacity 0.25s 0.15s; /* fade in after the box starts growing */
+	}
+	.details ul {
+		margin: 14px 0 0;
+		padding-left: 1.1em;
+		font-size: 0.95rem;
+		line-height: 1.8;
+	}
+	.details li::marker {
+		color: var(--vermilion);
+	}
+	.tiles {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 8px;
+		margin-top: 14px;
+	}
+	.tile {
+		aspect-ratio: 1;
+		background: #e7dfcf;
+		border: 1px solid var(--hairline);
+	}
+	.more {
+		display: inline-block;
+		margin-top: 14px;
+		color: var(--vermilion);
+		font-size: 0.9rem;
+		text-decoration: none;
+		border-bottom: 1px solid currentColor;
+	}
+
+	/* ----- Fixed UI ----- */
+	.logo {
+		position: absolute;
+		top: 16px;
+		left: 16px;
+		width: 44px;
+		height: 44px;
+		border: none;
+		border-radius: 4px;
+		background: var(--vermilion); /* like a hanko seal */
+		color: var(--paper-light);
+		font-family: var(--serif);
+		font-size: 1rem;
+		font-weight: 700;
+		cursor: pointer;
+	}
+	.nav {
+		position: absolute;
+		top: 26px;
+		right: 20px;
+		display: flex;
+		gap: 18px;
+	}
+	.nav button,
+	.zoom button {
+		border: none;
+		background: none;
+		padding: 0;
+		font-family: var(--serif);
+		color: var(--ink);
+		cursor: pointer;
+	}
+	.nav button {
+		font-size: 0.9rem;
+	}
+	.nav button:hover {
+		color: var(--vermilion);
+	}
+	.zoom {
+		position: absolute;
+		right: 16px;
+		bottom: calc(16px + var(--mini-h, 75px) + 10px);
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--hairline);
+		background: var(--paper-light);
+	}
+	.zoom button {
+		width: 32px;
+		height: 32px;
+		font-size: 1.1rem;
+	}
+	.zoom button + button {
+		border-top: 1px solid var(--hairline);
+	}
+	.zoom button:hover {
+		color: var(--vermilion);
+	}
+	.minimap {
+		position: absolute;
+		right: 16px;
+		bottom: 16px;
+		padding: 0;
+		background: var(--paper-light);
+		border: 1px solid var(--hairline);
+		border-radius: 2px;
+		cursor: pointer;
+	}
+	.mini-view {
+		position: absolute;
+		border: 1.5px solid var(--ink);
+		pointer-events: none;
+	}
+	.mini-dot {
+		position: absolute;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--vermilion);
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+	}
+	.hint {
+		position: absolute;
+		left: 16px;
+		bottom: 16px;
+		margin: 0;
+		font-size: 0.8rem;
+		color: var(--ink-soft);
+		pointer-events: none;
+	}
+
+	@media (max-width: 600px) {
+		.title h1 {
+			font-size: 2.2rem;
+		}
+		.nav {
+			gap: 12px;
+			top: 30px;
+		}
+		.nav button {
+			font-size: 0.8rem;
+		}
+		.hint {
+			display: none;
+		}
+	}
+</style>
+
+<script>
+	// Runs in the visitor's browser. Astro bundles it automatically.
+
+	// ----- 1. Elements and settings -----
+	const stage = document.querySelector<HTMLElement>('.stage')!;
+	const canvas = stage.querySelector<HTMLCanvasElement>('.grid')!;
+	const ctx = canvas.getContext('2d')!;
+	const world = stage.querySelector<HTMLElement>('.world')!;
+	const minimap = stage.querySelector<HTMLElement>('.minimap')!;
+	const miniView = stage.querySelector<HTMLElement>('.mini-view')!;
+	const cards = [...stage.querySelectorAll<HTMLElement>('.card')];
+
+	const WORLD_W = Number(stage.dataset.worldW);
+	const WORLD_H = Number(stage.dataset.worldH);
+	const HOME = { x: Number(stage.dataset.homeX), y: Number(stage.dataset.homeY) };
+	const MINI_W = Number(stage.dataset.miniW);
+	const MINI_H = Number(stage.dataset.miniH);
+	stage.style.setProperty('--mini-h', `${MINI_H}px`); // positions the zoom buttons above the minimap
+
+	// Feel: tweak these
+	const CELL = 28; // grid square size (in world px)
+	const FADE = 0.9; // trail fade per frame (closer to 1 = longer trail)
+	const FRICTION = 0.92; // glide after a flick (closer to 1 = glides longer)
+	const MAX_ZOOM = 2;
+	const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+	// ----- 2. Camera state -----
+	// The camera is a center point (camX, camY) in the world plus a zoom level.
+	// Converting between screen and world:
+	//   worldX  = camX + (screenX - viewW / 2) / zoom
+	//   screenX = (worldX - camX) * zoom + viewW / 2
+	let viewW = 0;
+	let viewH = 0;
+	let camX = HOME.x;
+	let camY = HOME.y;
+	let zoom = 1;
+	let vx = 0; // glide velocity, in world px per frame
+	let vy = 0;
+	let fly: { x: number; y: number; z: number } | null = null;
+
+	let dragging = false;
+	let moved = 0; // pointer distance since pressing down (tells a click from a drag)
+	let lastX = 0;
+	let lastY = 0;
+	const pointers = new Map<number, { x: number; y: number }>(); // fingers on screen, for pinch
+	let pinchDist = 0;
+
+	const litCells = new Map<string, number>(); // "col,row" -> brightness 0..1
+
+	// ----- 3. Camera helpers -----
+	function minZoom() {
+		// Never zoom out so far that you see past the edge of the world
+		return Math.max(viewW / WORLD_W, viewH / WORLD_H);
+	}
+
+	function clampCamera() {
+		zoom = Math.max(minZoom(), Math.min(MAX_ZOOM, zoom));
+		const halfW = viewW / 2 / zoom; // half the visible world width
+		const halfH = viewH / 2 / zoom;
+		camX = Math.max(halfW, Math.min(WORLD_W - halfW, camX));
+		camY = Math.max(halfH, Math.min(WORLD_H - halfH, camY));
+	}
+
+	// Zoom while keeping the world point under (sx, sy) fixed on screen,
+	// the way map apps zoom toward your cursor.
+	function zoomAt(sx: number, sy: number, newZoom: number) {
+		const wx = camX + (sx - viewW / 2) / zoom;
+		const wy = camY + (sy - viewH / 2) / zoom;
+		zoom = Math.max(minZoom(), Math.min(MAX_ZOOM, newZoom));
+		camX = wx - (sx - viewW / 2) / zoom;
+		camY = wy - (sy - viewH / 2) / zoom;
+		fly = null;
+		clampCamera();
+	}
+
+	function flyTo(x: number, y: number, z = zoom) {
+		fly = { x, y, z };
+		vx = vy = 0;
+	}
+
+	function resize() {
+		const dpr = window.devicePixelRatio || 1; // crisp lines on high-res screens
+		viewW = stage.clientWidth;
+		viewH = stage.clientHeight;
+		canvas.width = viewW * dpr;
+		canvas.height = viewH * dpr;
+		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		clampCamera();
+	}
+
+	// ----- 4. Expanding cards -----
+	function closeCards() {
+		cards.forEach((c) => {
+			c.classList.remove('open');
+			c.setAttribute('aria-expanded', 'false');
+		});
+	}
+
+	function openCard(card: HTMLElement) {
+		closeCards();
+		card.classList.add('open');
+		card.setAttribute('aria-expanded', 'true');
+		// Fly there and zoom to 100% so the expanded box is readable
+		flyTo(Number(card.dataset.x), Number(card.dataset.y) + 60, 1);
+	}
+
+	cards.forEach((card) => {
+		card.addEventListener('click', (e) => {
+			if (moved > 5) return; // that was a drag, not a click
+			const target = e.target as HTMLElement;
+			if (target.closest('.close')) {
+				closeCards();
+				e.stopPropagation();
+				return;
+			}
+			if (!card.classList.contains('open')) openCard(card);
+		});
+		// Keyboard: Enter or Space opens a focused card
+		card.addEventListener('keydown', (e) => {
+			if ((e.key === 'Enter' || e.key === ' ') && e.target === card) {
+				e.preventDefault();
+				openCard(card);
+			}
+		});
+	});
+
+	window.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape') closeCards();
+	});
+
+	// ----- 5. Pointer input: drag, pinch, hover -----
+	stage.addEventListener('pointerdown', (e) => {
+		moved = 0; // fresh press: forget any earlier drag
+		if ((e.target as HTMLElement).closest('.logo, .nav, .zoom, .minimap, .card.open')) return;
+		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (pointers.size === 2) {
+			// Second finger down: switch from dragging to pinching
+			const [a, b] = [...pointers.values()];
+			pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+			dragging = false;
+			return;
+		}
+		dragging = true;
+		moved = 0;
+		fly = null;
+		vx = vy = 0;
+		lastX = e.clientX;
+		lastY = e.clientY;
+		stage.classList.add('dragging');
+	});
+
+	window.addEventListener('pointermove', (e) => {
+		const box = stage.getBoundingClientRect();
+
+		// Pinch: zoom by how much the distance between two fingers changed
+		if (pointers.has(e.pointerId)) {
+			pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+			if (pointers.size === 2) {
+				const [a, b] = [...pointers.values()];
+				const dist = Math.hypot(a.x - b.x, a.y - b.y);
+				const midX = (a.x + b.x) / 2 - box.left;
+				const midY = (a.y + b.y) / 2 - box.top;
+				zoomAt(midX, midY, zoom * (dist / pinchDist));
+				pinchDist = dist;
+				moved = 99; // a pinch is never a click
+				return;
+			}
+		}
+
+		if (dragging) {
+			const dx = e.clientX - lastX;
+			const dy = e.clientY - lastY;
+			lastX = e.clientX;
+			lastY = e.clientY;
+			moved += Math.abs(dx) + Math.abs(dy);
+			// Divide by zoom: when zoomed in, the same hand movement covers less world
+			camX -= dx / zoom;
+			camY -= dy / zoom;
+			vx = -dx / zoom;
+			vy = -dy / zoom;
+			clampCamera();
+			return;
+		}
+
+		// Hover: light the square under the cursor (screen -> world -> grid cell)
+		const wx = camX + (e.clientX - box.left - viewW / 2) / zoom;
+		const wy = camY + (e.clientY - box.top - viewH / 2) / zoom;
+		litCells.set(`${Math.floor(wx / CELL)},${Math.floor(wy / CELL)}`, 1);
+	});
+
+	function endPointer(e: PointerEvent) {
+		pointers.delete(e.pointerId);
+		if (pointers.size === 0) {
+			// A click on empty paper (not a drag) closes any open card
+			if (dragging && moved <= 5 && !(e.target as HTMLElement).closest('.card')) closeCards();
+			dragging = false;
+			stage.classList.remove('dragging');
+		}
+	}
+	window.addEventListener('pointerup', endPointer);
+	window.addEventListener('pointercancel', endPointer);
+
+	// Scroll wheel / trackpad: zoom toward the cursor
+	stage.addEventListener(
+		'wheel',
+		(e) => {
+			e.preventDefault(); // stop the browser from scrolling or zooming the page
+			const box = stage.getBoundingClientRect();
+			const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // some mice report lines, not px
+			const speed = e.ctrlKey ? 0.01 : 0.0015; // trackpad pinch sends ctrlKey + small deltas
+			zoomAt(e.clientX - box.left, e.clientY - box.top, zoom * Math.exp(-delta * speed));
+		},
+		{ passive: false }, // required for preventDefault() to work on wheel events
+	);
+
+	// ----- 6. Fixed UI -----
+	stage.querySelector('.logo')!.addEventListener('click', () => {
+		closeCards();
+		flyTo(HOME.x, HOME.y, 1);
+	});
+
+	stage.querySelectorAll<HTMLButtonElement>('.nav button').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			const card = cards.find((c) => c.dataset.zone === btn.dataset.go)!;
+			openCard(card);
+		});
+	});
+
+	stage.querySelectorAll<HTMLButtonElement>('.zoom button').forEach((btn) => {
+		btn.addEventListener('click', () => {
+			zoomAt(viewW / 2, viewH / 2, zoom * (btn.dataset.zoom === 'in' ? 1.3 : 1 / 1.3));
+		});
+	});
+
+	minimap.addEventListener('click', (e) => {
+		const box = minimap.getBoundingClientRect();
+		flyTo(((e.clientX - box.left) / MINI_W) * WORLD_W, ((e.clientY - box.top) / MINI_H) * WORLD_H);
+	});
+
+	// ----- 7. Drawing -----
+	// Ink trail: mostly indigo, with occasional vermilion squares
+	function trailColor(col: number, row: number, a: number) {
+		return (col + row) % 5 === 0 ? `hsla(10, 72%, 52%, ${a * 0.75})` : `hsla(222, 35%, 38%, ${a * 0.35})`;
+	}
+
+	function frame() {
+		// Move the camera: flying, gliding, or holding still
+		if (fly) {
+			const k = reduceMotion ? 1 : 0.12; // reduced motion: jump instead of animating
+			camX += (fly.x - camX) * k;
+			camY += (fly.y - camY) * k;
+			zoom += (fly.z - zoom) * k;
+			if (Math.abs(fly.x - camX) < 0.5 && Math.abs(fly.y - camY) < 0.5 && Math.abs(fly.z - zoom) < 0.002) fly = null;
+		} else if (!dragging && (Math.abs(vx) > 0.02 || Math.abs(vy) > 0.02)) {
+			camX += vx;
+			camY += vy;
+			vx *= FRICTION;
+			vy *= FRICTION;
+		}
+		clampCamera();
+
+		// Move + scale the HTML world to match the camera
+		// Round to whole pixels: half-pixel positions make text edges look soft
+		const tx = Math.round(viewW / 2 - camX * zoom);
+		const ty = Math.round(viewH / 2 - camY * zoom);
+		world.style.transform = `translate(${tx}px, ${ty}px) scale(${zoom})`;
+
+		// Canvas: only the visible part of the world is drawn
+		ctx.clearRect(0, 0, viewW, viewH);
+		const size = CELL * zoom; // a cell's size on screen right now
+		const left = camX - viewW / 2 / zoom; // world x at the screen's left edge
+		const top = camY - viewH / 2 / zoom;
+
+		// Ink trail
+		for (const [key, brightness] of litCells) {
+			const [col, row] = key.split(',').map(Number);
+			ctx.fillStyle = trailColor(col, row, brightness);
+			ctx.fillRect((col * CELL - left) * zoom + 1, (row * CELL - top) * zoom + 1, size - 1, size - 1);
+			const next = brightness * FADE;
+			if (next < 0.01) litCells.delete(key);
+			else litCells.set(key, next);
+		}
+
+		// Grid lines (fainter when zoomed out, so it doesn't turn into a mesh)
+		ctx.strokeStyle = `rgba(42, 35, 32, ${0.03 + 0.04 * Math.min(1, zoom)})`;
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		for (let c = Math.floor(left / CELL); c * CELL <= left + viewW / zoom; c++) {
+			const x = Math.round((c * CELL - left) * zoom) + 0.5; // +0.5 keeps 1px lines sharp
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, viewH);
+		}
+		for (let r = Math.floor(top / CELL); r * CELL <= top + viewH / zoom; r++) {
+			const y = Math.round((r * CELL - top) * zoom) + 0.5;
+			ctx.moveTo(0, y);
+			ctx.lineTo(viewW, y);
+		}
+		ctx.stroke();
+
+		// Minimap "you are here" box
+		miniView.style.left = `${(left / WORLD_W) * MINI_W}px`;
+		miniView.style.top = `${(top / WORLD_H) * MINI_H}px`;
+		miniView.style.width = `${(viewW / zoom / WORLD_W) * MINI_W}px`;
+		miniView.style.height = `${(viewH / zoom / WORLD_H) * MINI_H}px`;
+
+		// requestAnimationFrame also pauses automatically when the tab is hidden
+		requestAnimationFrame(frame);
+	}
+
+	// ----- 8. Start -----
+	resize();
+	window.addEventListener('resize', resize);
+	requestAnimationFrame(frame);
+</script>

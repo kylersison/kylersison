@@ -48,8 +48,10 @@ import HeaderLink from './HeaderLink.astro';
 	header {
 		margin: 0;
 		padding: 0 1em;
-		background: white;
-		box-shadow: 0 2px 8px rgba(var(--black), 5%);
+		/* Transparent so the page's gradient shows through the bar */
+		background: transparent;
+		/* A thin line instead of a shadow (shadows barely show on dark backgrounds) */
+		border-bottom: 1px solid #262626;
 	}
 	h2 {
 		margin: 0;
@@ -67,9 +69,14 @@ import HeaderLink from './HeaderLink.astro';
 	}
 	nav a {
 		padding: 1em 0.5em;
-		color: var(--black);
+		/* Light text so links are readable on dark. (The old var(--black) was
+		   invalid: --black holds "15, 18, 25", which isn't a color by itself.) */
+		color: #e5e5e5;
 		border-bottom: 4px solid transparent;
 		text-decoration: none;
+	}
+	nav a:hover {
+		color: #ffffff;
 	}
 	nav a.active {
 		text-decoration: none;
