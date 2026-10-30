@@ -790,22 +790,18 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 			if (e.key === 'ArrowRight') show(index + 1);
 		});
 
-		// Tap or swipe on the photo. Both are handled on pointerup so a swipe
-		// never also counts as a tap.
-		//   swipe (finger moved more than 40px): swipe left = next, right = back
-		//   tap/click (barely moved): right half = next, left half = back
+		// Tap or click on the photo: right half = next, left half = back.
+		// Dragging is for moving the world, so a press that moves more than
+		// 10px doesn't count as a tap.
 		let downX: number | null = null;
 		frame.addEventListener('pointerdown', (e) => (downX = e.clientX));
 		frame.addEventListener('pointerup', (e) => {
 			if (downX === null || photos.length < 2) return;
-			const dx = e.clientX - downX;
+			const moved = Math.abs(e.clientX - downX);
 			downX = null;
-			if (Math.abs(dx) > 40) {
-				show(dx < 0 ? index + 1 : index - 1);
-			} else {
-				const box = frame.getBoundingClientRect(); // where the photo is on screen right now
-				show(e.clientX > box.left + box.width / 2 ? index + 1 : index - 1);
-			}
+			if (moved > 10) return;
+			const box = frame.getBoundingClientRect(); // where the photo is on screen right now
+			show(e.clientX > box.left + box.width / 2 ? index + 1 : index - 1);
 		});
 
 	}
