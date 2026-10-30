@@ -797,9 +797,11 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		frame.addEventListener('pointerdown', (e) => (downX = e.clientX));
 		frame.addEventListener('pointerup', (e) => {
 			if (downX === null || photos.length < 2) return;
-			const moved = Math.abs(e.clientX - downX);
+			const slid = Math.abs(e.clientX - downX);
 			downX = null;
-			if (moved > 10) return;
+			// Not a tap if the finger slid, or if this finger was part of a pinch
+			// (the pinch code sets `moved` high, see section 5)
+			if (slid > 10 || moved > 5) return;
 			const box = frame.getBoundingClientRect(); // where the photo is on screen right now
 			show(e.clientX > box.left + box.width / 2 ? index + 1 : index - 1);
 		});
@@ -809,7 +811,9 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 	// ----- 5. Pointer input: drag, pinch, hover -----
 	stage.addEventListener('pointerdown', (e) => {
 		moved = 0; // fresh press: forget any earlier drag
-		if ((e.target as HTMLElement).closest('.logo, .nav, .zoom, .minimap, .card.open')) return;
+		const target = e.target as HTMLElement;
+		if (target.closest('.logo, .nav, .zoom, .minimap')) return;
+		// Every finger counts toward a pinch, even one resting on an open card
 		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 		if (pointers.size === 2) {
 			// Second finger down: switch from dragging to pinching
@@ -818,6 +822,8 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 			dragging = false;
 			return;
 		}
+		// But one finger on an open card is for tapping inside it, not dragging the world
+		if (target.closest('.card.open')) return;
 		dragging = true;
 		moved = 0;
 		fly = null;
