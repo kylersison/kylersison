@@ -12,6 +12,23 @@
     3. fixed UI  : seal logo, nav, zoom buttons, minimap, hint (never move)
 */
 
+import fs from 'node:fs';
+
+// ----- Pictures: every image in public/pictures/ goes in the carousel -----
+// This runs when the site is built (or on each refresh in `npm run dev`),
+// so adding a photo is just dropping a file in that folder.
+// The file name becomes the alt text: "kyoto-sunset.jpg" -> "kyoto sunset".
+const PHOTO_DIR = 'public/pictures';
+const photos = fs.existsSync(PHOTO_DIR)
+	? fs
+			.readdirSync(PHOTO_DIR)
+			.filter((f) => /\.(jpe?g|png|webp|avif|gif)$/i.test(f))
+			.map((f) => ({
+				src: `/pictures/${encodeURIComponent(f)}`,
+				alt: f.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '),
+			}))
+	: [];
+
 // ----- World settings: edit these to rearrange your world -----
 const WORLD_W = 3200; // world width in px
 const WORLD_H = 2000; // world height in px
@@ -28,6 +45,7 @@ const zones = [
 		y: 520,
 		preview: [
 			'Computer science student at CSULB.',
+			'bleleel'
 		],
 	},
 	{
@@ -41,10 +59,10 @@ const zones = [
 	{
 		id: 'pictures',
 		label: 'Pictures',
-		blurb: 'cats, 日本, life',
+		blurb: 'cat, travel, life',
 		x: 650,
 		y: 1480,
-		preview: [], // shows placeholder photo tiles for now
+		preview: [], // the carousel fills this card (photos from public/pictures/)
 	},
 	{
 		id: 'blog',
@@ -80,6 +98,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		<div class="title" style={`left:${home.x}px;top:${home.y}px`}>
 			<h1>kyler sison</h1>
 			<p>drag to explore · scroll to zoom</p>
+			<p>2026 · kylersison@gmail.com</p>
 		</div>
 
 		{
@@ -111,6 +130,13 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 										<li>{line}</li>
 									))}
 								</ul>
+							) : photos.length > 0 ? (
+								<div class="carousel" data-photos={JSON.stringify(photos)}>
+									<div class="frame">
+										<img alt="" draggable="false" />
+									</div>
+									<div class="dots" aria-hidden="true"><div class="dots-track" /></div>
+								</div>
 							) : (
 								<div class="tiles">
 									{[1, 2, 3, 4, 5, 6].map(() => (
@@ -160,7 +186,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		--paper-light: #faf6ee;
 		--ink: #2a2320;
 		--ink-soft: #6b5e55;
-		--vermilion: #d9482b;
+		--accent: #2f5d3d; /* forest green */
 		--hairline: rgba(42, 35, 32, 0.18);
 		--serif: 'Noto Serif JP', Georgia, serif;
 	}
@@ -233,7 +259,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		padding: 14px 18px;
 		background: var(--paper-light);
 		border: 1px solid var(--hairline);
-		border-top: 3px solid var(--vermilion);
+		border-top: 3px solid var(--accent);
 		border-radius: 2px;
 		color: var(--ink);
 		cursor: pointer;
@@ -247,7 +273,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		transform: translate(-50%, -50%) scale(1.04);
 	}
 	.card:focus-visible {
-		outline: 2px solid var(--vermilion);
+		outline: 2px solid var(--accent);
 		outline-offset: 3px;
 	}
 	.card.open {
@@ -321,7 +347,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		line-height: 1.8;
 	}
 	.details li::marker {
-		color: var(--vermilion);
+		color: var(--accent);
 	}
 	.tiles {
 		display: grid;
@@ -335,6 +361,79 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		border: 1px solid var(--hairline);
 	}
 
+	/* ----- Pictures carousel ----- */
+	.carousel {
+		margin-top: 14px;
+	}
+	.frame {
+		/*
+		  The script sets width and height to match each photo's shape, so the
+		  box hugs the photo: no cropping, no empty bars. Until then (before the
+		  first photo loads) it's a 4:3 placeholder.
+		*/
+		aspect-ratio: 4 / 3;
+		max-width: 100%;
+		margin: 0 auto; /* center narrower (tall) photos */
+		background: #e7dfcf; /* shows while a photo is loading */
+		border: 1px solid var(--hairline);
+		overflow: hidden;
+		/* animate the reshape when the next photo has a different shape */
+		transition:
+			width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+			height 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	.frame img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: contain; /* fill the box, cropping the edges instead of squishing */
+		user-select: none;
+		transition: opacity 0.25s;
+	}
+	.frame {
+		cursor: pointer; /* the photo itself is the control: left half = back, right half = next */
+	}
+	/*
+	  Looping dots: a row of dots (the track) inside a small window that
+	  only shows a few. The script slides the track one step per photo.
+	  Each dot is 6px wide + 3px margin each side = 12px per step.
+	*/
+	.dots {
+		margin: 10px auto 0;
+		overflow: hidden; /* hide the dots that are outside the window */
+	}
+	.dots-track {
+		display: flex;
+		transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	/*
+	  :global() because these dots are created by the script. Astro scopes this
+	  file's CSS to elements written in the template above (it tags each one with
+	  a hidden data-astro-cid attribute). Elements made later with
+	  document.createElement don't get the tag, so a plain `.dots-track span`
+	  would never match them. :global(...) turns scoping off for just that part.
+	*/
+	.dots-track :global(span) {
+		flex: none;
+		width: 6px;
+		height: 6px;
+		margin: 0 3px;
+		border-radius: 50%;
+		background: rgba(42, 35, 32, 0.25);
+		transition:
+			transform 0.3s,
+			background 0.3s;
+	}
+	.dots-track :global(span.active) {
+		background: var(--accent);
+	}
+	.dots-track :global(span.small) {
+		transform: scale(0.6); /* "there are more photos past this one" */
+	}
+	.frame img.loading {
+		opacity: 0;
+	}
+
 	/* ----- Fixed UI ----- */
 	.logo {
 		position: absolute;
@@ -344,7 +443,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		height: 44px;
 		border: none;
 		border-radius: 4px;
-		background: var(--vermilion); /* like a hanko seal */
+		background: var(--accent); /* like a hanko seal */
 		color: var(--paper-light);
 		font-family: var(--serif);
 		font-size: 1rem;
@@ -371,7 +470,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		font-size: 0.9rem;
 	}
 	.nav button:hover {
-		color: var(--vermilion);
+		color: var(--accent);
 	}
 	.zoom {
 		position: absolute;
@@ -391,7 +490,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		border-top: 1px solid var(--hairline);
 	}
 	.zoom button:hover {
-		color: var(--vermilion);
+		color: var(--accent);
 	}
 	.minimap {
 		position: absolute;
@@ -413,7 +512,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		width: 6px;
 		height: 6px;
 		border-radius: 50%;
-		background: var(--vermilion);
+		background: var(--accent);
 		transform: translate(-50%, -50%);
 		pointer-events: none;
 	}
@@ -560,6 +659,7 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 		closeCards();
 		card.classList.add('open');
 		card.setAttribute('aria-expanded', 'true');
+		card.dispatchEvent(new Event('cardopen')); // lets the carousel know (any way of opening: click, nav, keyboard)
 		// Fly there and zoom to 100% so the expanded box is readable
 		flyTo(Number(card.dataset.x), Number(card.dataset.y) + 60, 1);
 	}
@@ -587,6 +687,128 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 	window.addEventListener('keydown', (e) => {
 		if (e.key === 'Escape') closeCards();
 	});
+
+	// ----- 4b. Pictures carousel -----
+	const carousel = document.querySelector<HTMLElement>('.carousel');
+	if (carousel) {
+		const photos: { src: string; alt: string }[] = JSON.parse(carousel.dataset.photos!);
+
+		// Shuffle (Fisher-Yates): walk backwards, swapping each photo with a
+		// random one at or before it. Every order is equally likely.
+		for (let i = photos.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[photos[i], photos[j]] = [photos[j], photos[i]];
+		}
+
+		const img = carousel.querySelector('img')!;
+		const card = carousel.closest<HTMLElement>('.card')!;
+		const frame = carousel.querySelector<HTMLElement>('.frame')!;
+		let index = 0;
+
+		// ----- Dots -----
+		// The photos loop (left from the first goes to the last), so the dots
+		// loop too: the current dot always sits in the middle with dots on both
+		// sides, and the edge dots are shrunk to say "there's more past here".
+		// Moving slides the whole row one step, then quietly snaps it back to
+		// the middle. All dots look alike, so the snap is invisible.
+		const STEP = 12; // px per dot (6px dot + 3px margin on each side)
+		const slots = photos.length >= 5 ? 5 : 3; // dots visible at once (odd, so there's a middle)
+		const half = Math.floor(slots / 2);
+		const MID = 1 + half; // middle dot (the track has 1 extra hidden dot at each end)
+		const dotsBox = carousel.querySelector<HTMLElement>('.dots')!;
+		const track = carousel.querySelector<HTMLElement>('.dots-track')!;
+		const dots = Array.from({ length: slots + 2 }, () => track.appendChild(document.createElement('span')));
+		dotsBox.style.width = `${slots * STEP}px`;
+		if (photos.length < 2) dotsBox.style.display = 'none';
+
+		// Mark which dot is "current" and which are the small edge dots
+		function paintDots(center: number) {
+			dots.forEach((dot, i) => {
+				dot.classList.toggle('active', i === center);
+				dot.classList.toggle('small', Math.abs(i - center) === half);
+			});
+		}
+
+		// Snap back to the resting position, with no animation
+		function restDots() {
+			track.style.transition = 'none';
+			track.style.transform = `translateX(${-STEP}px)`; // hide the extra dot on the left
+			paintDots(MID);
+			track.offsetWidth; // make the browser apply this now, before transitions come back
+			track.style.transition = '';
+		}
+		restDots();
+
+		// dir: +1 = next (row slides left), -1 = back (row slides right)
+		function moveDots(dir: number) {
+			restDots(); // finish any slide still in progress first
+			paintDots(MID + dir); // the dot sliding into the middle becomes the current one
+			track.style.transform = `translateX(${-(1 + dir) * STEP}px)`;
+		}
+		track.addEventListener('transitionend', (e) => {
+			if (e.target === track) restDots(); // ignore the dots' own scale transitions
+		});
+
+		// Size the frame to the photo's own shape, as big as fits in the card.
+		// naturalWidth/naturalHeight are the photo file's real pixel size.
+		function fit() {
+			if (!img.naturalWidth) return; // no photo loaded yet
+			const maxW = carousel!.clientWidth;
+			const maxH = Math.min(window.innerHeight * 0.6, 520); // tall photos can't run off the screen
+			const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+			frame.style.width = `${Math.round(img.naturalWidth * scale)}px`;
+			frame.style.height = `${Math.round(img.naturalHeight * scale)}px`;
+		}
+
+		// When a photo finishes downloading: reshape the box, then fade the photo in
+		img.addEventListener('load', () => {
+			fit();
+			img.classList.remove('loading');
+		});
+
+		// Re-fit whenever the card's width changes (card opening, window resizing)
+		new ResizeObserver(fit).observe(carousel);
+
+		function show(i: number) {
+			const dir = i - index; // +1 next, -1 back, 0 for the very first photo
+			index = (i + photos.length) % photos.length; // wrap around at both ends
+			if (dir !== 0) moveDots(dir);
+			img.classList.add('loading');
+			img.src = photos[index].src;
+			img.alt = photos[index].alt;
+		}
+
+		// Only download the first photo when the card is opened, not on page load
+		card.addEventListener('cardopen', () => {
+			if (!img.getAttribute('src')) show(0);
+		});
+
+		// Arrow keys flip photos while the pictures card is open
+		window.addEventListener('keydown', (e) => {
+			if (!card.classList.contains('open')) return;
+			if (e.key === 'ArrowLeft') show(index - 1);
+			if (e.key === 'ArrowRight') show(index + 1);
+		});
+
+		// Tap or swipe on the photo. Both are handled on pointerup so a swipe
+		// never also counts as a tap.
+		//   swipe (finger moved more than 40px): swipe left = next, right = back
+		//   tap/click (barely moved): right half = next, left half = back
+		let downX: number | null = null;
+		frame.addEventListener('pointerdown', (e) => (downX = e.clientX));
+		frame.addEventListener('pointerup', (e) => {
+			if (downX === null || photos.length < 2) return;
+			const dx = e.clientX - downX;
+			downX = null;
+			if (Math.abs(dx) > 40) {
+				show(dx < 0 ? index + 1 : index - 1);
+			} else {
+				const box = frame.getBoundingClientRect(); // where the photo is on screen right now
+				show(e.clientX > box.left + box.width / 2 ? index + 1 : index - 1);
+			}
+		});
+
+	}
 
 	// ----- 5. Pointer input: drag, pinch, hover -----
 	stage.addEventListener('pointerdown', (e) => {
@@ -698,9 +920,9 @@ const MINI_H = Math.round((MINI_W * WORLD_H) / WORLD_W);
 	});
 
 	// ----- 7. Drawing -----
-	// Ink trail: mostly indigo, with occasional vermilion squares
+	// Ink trail: mostly indigo, with occasional forest-green squares
 	function trailColor(col: number, row: number, a: number) {
-		return (col + row) % 5 === 0 ? `hsla(10, 72%, 52%, ${a * 0.75})` : `hsla(222, 35%, 38%, ${a * 0.35})`;
+		return (col + row) % 5 === 0 ? `hsla(140, 33%, 32%, ${a * 0.75})` : `hsla(222, 35%, 38%, ${a * 0.35})`;
 	}
 
 	function frame() {
